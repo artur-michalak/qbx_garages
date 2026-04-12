@@ -16,11 +16,13 @@ shared_scripts {
 
 client_scripts {
     '@qbx_core/modules/playerdata.lua',
+    'client/mutex.lua',
     'client/main.lua',
 }
 
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
+    'server/default-calculate-impound-fee.lua',
     'server/main.lua',
     'server/spawn-vehicle.lua',
 }

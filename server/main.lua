@@ -1,3 +1,7 @@
+local config = require 'config.server'
+local logger = require '@qbx_core.modules.logger'
+local calculateImpoundFee = require(config.calculateImpoundFee)
+
 assert(lib.checkDependency('qbx_core', '1.19.0', true))
 assert(lib.checkDependency('qbx_vehicles', '1.3.1', true))
 lib.versionCheck('Qbox-project/qbx_garages')
@@ -140,21 +144,47 @@ local function getVehicleType(playerVehicle)
     end
 end
 
+local function overrideDepotPriceForOutVehicle(vehicle)
+    if VehicleState.OUT == vehicle.state
+        and (not vehicle.depotPrice or vehicle.depotPrice == 0)
+    then
+        vehicle.depotPrice = calculateImpoundFee(vehicle.id, vehicle.modelName)
+    end
+end
+
 ---@param source number
 ---@param garageName string
 ---@return PlayerVehicle[]?
 lib.callback.register('qbx_garages:server:getGarageVehicles', function(source, garageName)
     local player = exports.qbx_core:GetPlayer(source)
     local garage = Garages[garageName]
+
+    if not garage then
+        logger.log({
+            source = source,
+            event = 'error',
+            message = string.format(
+                'Attempted to spawn a vehicle from a non-existent garage: %s',
+                garageName
+            ),
+            webhook = config.logging.webhook.error,
+            color = 'red'
+        })
+
+        return
+    end
+
     if not getCanAccessGarage(player, garage) then return end
     local filter = GetPlayerVehicleFilter(source, garageName)
     local playerVehicles = exports.qbx_vehicles:GetPlayerVehicles(filter)
     local toSend = {}
     if not playerVehicles[1] then return end
+
+    local vehicleType = garage.vehicleType
     for _, vehicle in pairs(playerVehicles) do
         if not FindPlateOnServer(vehicle.props.plate) then
-            local vehicleType = Garages[garageName].vehicleType
             if vehicleType == getVehicleType(vehicle) then
+                overrideDepotPriceForOutVehicle(vehicle)
                 toSend[#toSend + 1] = vehicle
             end
         end
